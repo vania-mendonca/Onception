@@ -1,9 +1,10 @@
 import numpy as np
+import random
 from random import choices
 
 class OnlineAlgorithm:
     
-    def __init__(self, num_experts, decimal_places, reward_function):
+    def __init__(self, num_experts, decimal_places, reward_function, seed):
         self._reward_decimal_places = decimal_places
         self._reward_function=reward_function
         self._chosen_expert = None
@@ -13,6 +14,7 @@ class OnlineAlgorithm:
         self._optimal_policy_loss = 0
         self._regret = 0
         self._previous_regret = 0
+        random.seed(seed)
         
     @property
     def chosen_expert(self):
@@ -33,8 +35,10 @@ class OnlineAlgorithm:
     
     def forecaster(self, experts, params=None):    
         
+#         print(len(experts))
+#         print(self._weights_as_probabilities)
+
         experts_votes = [expert.output(params) for expert in experts]
-        
         self._chosen_expert = choices(range(0, len(experts)), self._weights_as_probabilities)[0]
 
         return experts_votes[self._chosen_expert]
@@ -58,9 +62,9 @@ class OnlineAlgorithm:
 
 class EWAF(OnlineAlgorithm):
 
-    def __init__(self, num_experts, decimal_places, eta, reward_function):
+    def __init__(self, num_experts, decimal_places, eta, reward_function, seed):
         self._eta = eta
-        super().__init__(num_experts, decimal_places, reward_function)
+        super().__init__(num_experts, decimal_places, reward_function, seed)
 
 
     def update(self, experts, current_iteration, params=None):
@@ -84,6 +88,7 @@ class EWAF(OnlineAlgorithm):
 
             experts[j].cumulative_reward = experts[j].cumulative_reward + expert_reward
             experts[j].cumulative_loss = experts[j].cumulative_loss + expert_loss
+
 
             if j == self.chosen_expert:
                 self._forecaster_cumulative_loss = self._forecaster_cumulative_loss + expert_loss
@@ -122,10 +127,10 @@ class EWAF(OnlineAlgorithm):
 
 class EXP3(OnlineAlgorithm):
 
-    def __init__(self, num_arms, decimal_places, reward_function):
+    def __init__(self, num_arms, decimal_places, reward_function, seed):
 
         self._arms_use_count = [0 for i in range(num_arms)]
-        super().__init__(num_arms, decimal_places, reward_function)
+        super().__init__(num_arms, decimal_places, reward_function, seed)
 
 
     def update(self, arms, current_iteration, params=None):
@@ -139,6 +144,7 @@ class EXP3(OnlineAlgorithm):
         print(arm_chosen.name)
 
         ## REWARD / LOSS
+
 
         for j in range(len(arms)):
             arm_reward = self._reward_(arms[j], params=params)
@@ -208,11 +214,11 @@ class EXP3(OnlineAlgorithm):
 ################################################################################
 
 
-def init_online_algorithm(algorithm, num_experts, decimal_places=None, eta_value=8,  reward_function="human"):
+def init_online_algorithm(algorithm, num_experts, decimal_places=None, eta_value=8,  reward_function="human", seed=0):
 
     if algorithm == "EWAF":
-        return EWAF(num_experts, decimal_places, eta_value, reward_function)
+        return EWAF(num_experts, decimal_places, eta_value, reward_function, seed)
     elif algorithm == "EXP3":
-        return EXP3(num_experts, decimal_places, reward_function)
+        return EXP3(num_experts, decimal_places, reward_function, seed)
     else:
         return # FIXME throw exception

@@ -1,10 +1,12 @@
+from tqdm import tqdm
+
 from io_utils import *
 from nlp_utils import *
 
 
-def src_to_embeddings(lang, corpus_path, embedder):
+def src_to_embeddings(task, lang, corpus_path, embedder):
     
-    if lang == "en-de":
+    if lang == "en-de" and task == "WMT19":
         idx = 'sent_id'
     else:
         idx = 'sid'
@@ -15,7 +17,7 @@ def src_to_embeddings(lang, corpus_path, embedder):
 
     src_ids = corpus_df[[idx, 'src']]
 
-    for s_id in corpus_df[idx]:
+    for s_id in tqdm(corpus_df[idx]):
         if s_id not in emb_src.keys():
             src = src_ids.loc[src_ids[idx] == s_id].src.iloc[0]
             #print(src)
@@ -26,9 +28,9 @@ def src_to_embeddings(lang, corpus_path, embedder):
     return emb_src
 
     
-def mt_to_embeddings(lang, corpus_path, embedder):
+def mt_to_embeddings(task, lang, corpus_path, embedder):
 
-    if lang == "en-de":
+    if lang == "en-de" and task == "WMT19":
         idx = 'sent_id'
     else:
         idx = 'sid'
@@ -39,7 +41,7 @@ def mt_to_embeddings(lang, corpus_path, embedder):
 
     all_model_names = list(corpus_df.system.unique())
 
-    for model_name in all_model_names:
+    for model_name in tqdm(all_model_names):
 
         system_df = corpus_df.loc[corpus_df['system'] == model_name]
 

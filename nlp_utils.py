@@ -14,8 +14,7 @@ def get_ngrams_from_instances(instance_list, max_len=3):
 
     all_n_grams = []
     for inst in instance_list:
-        inst_tokens = nltk.word_tokenize(inst.src_sentence_pp.lower())
-        inst_ngrams = list(everygrams(inst_tokens, max_len=max_len))
+        inst_ngrams = list(everygrams(inst.src_tokens, max_len=max_len))
         all_n_grams = all_n_grams + inst_ngrams
 
     return all_n_grams

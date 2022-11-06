@@ -5,11 +5,13 @@ Active Learning with Expert Advice for Real World Machine Translation
 
 ### Data
 
-We use the test sets from the [WMT'19 News Translation shared task](http://statmt.org/wmt19/translation-task.html).
+We use the test sets from the [WMT'19 News Translation shared task](http://statmt.org/wmt19/translation-task.html) and the [WMT'20 News Translation shared task](https://github.com/google/wmt-mqm-human-evaluation) (the latter annotated with pSQM scores).
 
-On the test sets above, the files `ad-seg-scores-src-mt.csv` for each language pair `src-mt` (where `src` is the source language and `mt` is the translation language) are under different subfolders of "[human evaluation data](https://www.computing.dcu.ie/~ygraham/newstest2019-humaneval.tar.gz)" (depending on the languages), and should be gathered under the same directory when running the `Preprocessing-AnyLang` notebook. 
+On the test sets from WMT'19, the files `ad-seg-scores-src-mt.csv` for each language pair `src-mt` (where `src` is the source language and `mt` is the translation language) are under different subfolders of "[human evaluation data](https://www.computing.dcu.ie/~ygraham/newstest2019-humaneval.tar.gz)" (depending on the languages), and should be gathered under the same directory when running the `Preprocessing-AnyLang` notebook. 
 
-In the `datasets/` folder, we provide the Comet scores for each pair of segment ID (`sid`) and competing system. 
+In the `datasets/` folder, we provide the Comet scores for each pair of segment ID (`sid`) and competing system on WMT'19.
+
+For WMT'20, the files `psqm_newstest2020_ende.tsv` and `psqm_newstest2020_zhen.tsv` provided [here](https://github.com/google/wmt-mqm-human-evaluation/tree/main/newstest2020) should be run over `data_processing_20_2/DataProcessing_pSQM.ipynb`, and the outputs copied to the `datasets/WMT20_pSQM` folder. 
 
 ### How to run
 
@@ -31,7 +33,7 @@ Experiments:
 - Individual active learning query strategies: 
 
 ```
-> mt_ol_al.py --qs=<query_strategy> --sm=<similarity_measure> --ts=<threshold> --alg=<online_algorithm> --rw=<reward_func> --src=<src_lang> --mt=<mt_lang> --run=<num_no>
+> mt_ol_al.py --qs=<query_strategy> --sm=<similarity_measure> --ts=<threshold> --alg=<online_algorithm> --rw=<reward_func> --task=<task> --src=<src_lang> --mt=<mt_lang> --run=<num_no>
 ```
 
 ### How to cite

@@ -62,13 +62,17 @@ class QueryStrategy(Expert):
     for query strategies that use similarity
     
     """
-    def apply_similarity_measure(self, s1_str, s2_str, s1_emb, s2_emb):
+    def apply_similarity_measure(self, s1_str, s2_str, s1_tok, s2_tok, s1_emb, s2_emb):
         if self._sm == "jac":
-            return jaccard_similarity(list(s1_str), list(s2_str))
+            return jaccard_similarity(s1_tok, s2_tok)
+
         if self._sm == "dice":
-            return dice_similarity(list(s1_str), list(s2_str))
+
+            return dice_similarity(s1_tok, s2_tok)
+
         if self._sm == "BERT":
             return cosine_similarity(s1_emb, s2_emb)
+
         if self._sm == "BLEU":
             bleu_sim = sacrebleu.corpus_bleu([s1_str], [[s2_str]])
             return (bleu_sim.score / 100.0)
@@ -77,14 +81,14 @@ class QueryStrategy(Expert):
 ################################################################################
 
 class RandomSampling(QueryStrategy):
-    
-    def __init__(self, num_qs=None, reward_function=None):
+
+    def __init__(self, seed, num_qs=None, reward_function=None):
+        random.seed(seed)
         super().__init__("Random", similarity_measure=None, threshold=None, num_qs=num_qs, reward_function=reward_function)
 
 
     def vote_instance(self, instance_to_query, labeled_so_far=None, unlabeled_so_far=None):
 
-        #random.seed(6)
         return bool(random.getrandbits(1))
 
 
@@ -101,7 +105,9 @@ class Diversity(QueryStrategy):
 
 
     def vote_instance(self, instance_to_query, labeled_so_far=None, unlabeled_so_far=None):
-        avg_similarity = np.mean([self.apply_similarity_measure(instance_to_query.src_sentence_pp, l.src_sentence_pp, instance_to_query.src_embedding, l.src_embedding) for l in labeled_so_far])
+
+        sim_list = [self.apply_similarity_measure(instance_to_query.src_sentence_pp, l.src_sentence_pp, instance_to_query.src_tokens, l.src_tokens, instance_to_query.src_embedding, l.src_embedding) for l in labeled_so_far]
+        avg_similarity = np.mean(sim_list)
         
         print("{} - avg sim: {}".format(self, avg_similarity))
 
@@ -123,7 +129,10 @@ class Density(QueryStrategy):
 
 
     def vote_instance(self, instance_to_query, labeled_so_far=None, unlabeled_so_far=None):
-        avg_similarity = np.mean([self.apply_similarity_measure(instance_to_query.src_sentence_pp, u.src_sentence_pp, instance_to_query.src_embedding, u.src_embedding) for u in unlabeled_so_far])
+
+        sim_list = [self.apply_similarity_measure(instance_to_query.src_sentence_pp, u.src_sentence_pp, instance_to_query.src_tokens, u.src_tokens, instance_to_query.src_embedding, u.src_embedding) for u in unlabeled_so_far]
+        #print(sim_list)
+        avg_similarity = np.mean(sim_list)
         
         print("{} - avg sim: {}".format(self, avg_similarity))
 
@@ -152,8 +161,7 @@ class NGramDiversity(QueryStrategy):
 
         L_ngrams = get_ngrams_from_instances(labeled_so_far, max_len=self._max_n)
 
-        sentence_tokens = nltk.word_tokenize(instance_to_query.src_sentence_pp.lower())
-        sentence_ngrams = list(everygrams(sentence_tokens, max_len=self._max_n))
+        sentence_ngrams = list(everygrams(instance_to_query.src_tokens, max_len=self._max_n))
 
         diversity = np.sum([int(ngram not in L_ngrams) for ngram in sentence_ngrams]) / len(sentence_ngrams)
 
@@ -193,8 +201,7 @@ class NGramDensity(QueryStrategy):
         L_counts.update(L_ngrams)
         U_counts.update(U_ngrams)
 
-        sentence_tokens = nltk.word_tokenize(instance_to_query.src_sentence_pp.lower())
-        sentence_ngrams = list(everygrams(sentence_tokens, max_len=self._max_n))
+        sentence_ngrams = list(everygrams(instance_to_query.src_tokens, max_len=self._max_n))
 
         density = np.sum(
             [U_counts[ngram] * np.exp(-self._lambda * L_counts[ngram]) for ngram
@@ -224,6 +231,7 @@ class QueryByCommittee(QueryStrategy):
         avg_agreement = 0
 
         mt_sentences_list = list(instance_to_query.mt_sentences.values())
+        mt_tokens_list = list(instance_to_query.mt_tokens.values())
         mt_embeddings_list = list(instance_to_query.mt_embeddings.values())
 
         mt_length = len(mt_sentences_list)
@@ -232,7 +240,7 @@ class QueryByCommittee(QueryStrategy):
 
         for i in range(mt_length):
             for j in range(i):
-                 avg_agreement = avg_agreement + self.apply_similarity_measure(mt_sentences_list[i], mt_sentences_list[j], mt_embeddings_list[i], mt_embeddings_list[j])
+                 avg_agreement = avg_agreement + self.apply_similarity_measure(mt_sentences_list[i], mt_sentences_list[j], mt_tokens_list[i], mt_tokens_list[j], mt_embeddings_list[i], mt_embeddings_list[j])
 
         avg_agreement = avg_agreement / n_combos
         
@@ -262,6 +270,8 @@ class QualityEstimation(QueryStrategy):
     def vote_instance(self, instance_to_query, labeled_so_far=None,
                       unlabeled_so_far=None):
 
+        avg_quality = 0
+
         mt_prism_scores = list(instance_to_query.mt_prism_scores.values())
         avg_quality = np.mean(mt_prism_scores)
 
@@ -279,10 +289,10 @@ class QualityEstimation(QueryStrategy):
 
 ################################################################################
 
-def init_query_strategy(strategy_name, params, num_qs, reward_function):
+def init_query_strategy(strategy_name, params, num_qs, reward_function, seed=0):
 
     if strategy_name == "random":
-        query_strategy = RandomSampling(num_qs=num_qs, reward_function=reward_function)
+        query_strategy = RandomSampling(seed, num_qs=num_qs, reward_function=reward_function)
         return query_strategy
 
     elif strategy_name == "Div":

@@ -5,6 +5,11 @@ import pandas as pd
 def print_to_txt(data, filepath):
     with filepath.open("w") as f:
         print(data, file=f)
+        
+def print_list_to_txt(data, filepath):
+    with filepath.open("w") as f:
+        for el in data:
+            print(el, file=f)
 
 
 def print_to_pickle(data, filepath):
@@ -15,7 +20,7 @@ def print_to_pickle(data, filepath):
 def load_int_list_from_txt(filepath):
     read_lines = filepath.read_text(encoding="utf8")
     read_lines = read_lines.split("\n")
-    return [int(line) for line in read_lines]
+    return [int(line) for line in read_lines if len(line) > 0]
 
 
 def load_list_from_pickle(filepath):

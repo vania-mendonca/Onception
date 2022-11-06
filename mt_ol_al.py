@@ -1,8 +1,12 @@
 from pathlib import Path # only supported in Python 3
+import os
 import sys
 import getopt
+from nltk.tokenize import word_tokenize
+import jieba
 
 from io_utils import *
+from nlp_utils import *
 from OnlineAlgorithm import *
 from QueryStrategy import *
 from TaskModel import *
@@ -22,28 +26,33 @@ def main(argv):
     sim_measure = "jac"
     threshold = 0.5
 
-    # EWAF / EXP3 params
+    # Online learning
     algorithm = "EWAF"  # "EXP3" # "EWAF
     reward_function = "human"
-    # "human" "human-avg" "human-comet" "comet" "bleu"
+    eta_param = 8  # weight update (EWAF)
+    dp = 2  # reward decimal places
+    # "human"
+    # "human-avg" "human-comet" "comet" "bleu" # (only when using DA scores)
+
 
     # MT params
     src_lang = "en"
     mt_lang = "de"
+    task = "WMT19"  # "WMT20_pSQM" # "WMT19"
 
     # Setup
-    run = "1"
+    seed = 0
 
     ###
     # Getting params from command line:
 
     try:
-        opts, args = getopt.getopt(argv, "", ["qs=", "sm=", "ts=", "alg=", "rw=", "src=", "mt=", "run="])
+        opts, args = getopt.getopt(argv, "", ["qs=", "sm=", "ts=", "alg=", "rw=", "task=", "src=", "mt=", "run="])
 
     except getopt.GetoptError:
         print("troll_al.py --qs=<query_strategy> --sm=<similarity_measure> "
               "--ts=<threshold> --alg=<online_algorithm> --rw=<reward_func> "
-              "--src=<src_lang> --mt=<mt_lang> --run=<num_no>")
+              "--task=<task> --src=<src_lang> --mt=<mt_lang> --run=<num_no>")
         sys.exit(2)
 
     for opt, arg in opts:
@@ -62,29 +71,32 @@ def main(argv):
         if opt == '--rw':
             reward_function = arg
 
+        if opt == '--task':
+            task = arg
         if opt == '--src':
             src_lang = arg
         if opt == '--mt':
             mt_lang = arg
 
         if opt == '--run':
-            run = arg
+            seed = int(arg)
 
-    ###
 
-    # Online learning
-    eta_param = 8  # weight update (EWAF)
-    dp = 2  # reward decimal places
+    ##
 
-    # MT
+    # depending on args:
+
+    run = str(seed)
     lang = src_lang + "-" + mt_lang
-
 
     ################
 
-    data_folder = Path("datasets/{}/".format(lang))
-    emb_folder = Path("embeddings/")
-    results_folder = Path("results/{}/".format(lang))
+    data_folder = Path("datasets/{}/{}/".format(task, lang))
+    emb_folder = Path("embeddings/{}/".format(task))
+    results_folder = Path("results/{}/{}/run{}/".format(task, lang, run))
+
+    if not os.path.isdir(results_folder.as_posix()):
+        os.makedirs(results_folder.as_posix())
 
 
     ################
@@ -92,26 +104,27 @@ def main(argv):
 
     print("Loading corpus...")
 
-    learn_sent_ids_filepath = data_folder / "shuf_ids.txt"
-    #corpus_filepath = data_folder / "{}.pickle".format(lang)
-    corpus_filepath = data_folder / "{}_prism.pickle".format(lang)
-
+    learn_sent_ids_filepath = data_folder / "shuf_ids_{}.txt".format(run)
     learning_ids = load_int_list_from_txt(learn_sent_ids_filepath)
     print("First:", learning_ids[0])
 
+    corpus_filepath = data_folder / "{}_prism.pickle".format(lang)
     full_corpus = load_dataframe_from_pickle(corpus_filepath)
 
+    full_corpus['src'] = full_corpus['src'].astype('string')
+    full_corpus['mt'] = full_corpus['mt'].astype('string')
 
     ################
     # Loading embeddings
 
-    print("Loading embeddings...")
+    if sim_measure == "BERT":
+        print("Loading embeddings...")
 
-    src_emb_filepath = emb_folder / "BERT_{}_src_{}.pickle".format(lang, src_lang)
-    mt_emb_filepath = emb_folder / "BERT_{}_mt_{}.pickle".format(lang, mt_lang)
+        src_emb_filepath = emb_folder / "BERT_{}_src_{}.pickle".format(lang, src_lang)
+        mt_emb_filepath = emb_folder / "BERT_{}_mt_{}.pickle".format(lang, mt_lang)
 
-    src_embeddings = load_dict_from_pickle(src_emb_filepath)
-    mt_embeddings = load_dict_from_pickle(mt_emb_filepath)
+        src_embeddings = load_dict_from_pickle(src_emb_filepath)
+        mt_embeddings = load_dict_from_pickle(mt_emb_filepath)
 
 
     ################
@@ -119,10 +132,10 @@ def main(argv):
 
     print("Loading MT data...")
 
-    if lang == "en-de":
+    idx = 'sid'
+
+    if task == "WMT19" and lang == "en-de":
         idx = 'sent_id'
-    else:
-        idx = 'sid'
 
     all_model_names = list(full_corpus.system.unique())
     all_models = []
@@ -149,7 +162,7 @@ def main(argv):
 
     print("Init AL query strategy...")
 
-    query_strategy = init_query_strategy(AL_strategy, (sim_measure, threshold), 1, None)
+    query_strategy = init_query_strategy(AL_strategy, (sim_measure, threshold), 1, None, seed=seed)
     print(query_strategy)
 
     ###
@@ -160,13 +173,24 @@ def main(argv):
 
     for sent_id in learning_ids:
 
+        print("sid:", sent_id)
+
         full_info = full_corpus.loc[full_corpus[idx] == sent_id]
 
         src_sentence = str(full_info['src'].iloc[0])
         src_sentence_pp = remove_punctuation(src_sentence)
-        src_embedding = src_embeddings[sent_id]
 
-        inst = Instance(sent_id, src_sentence, src_sentence_pp, src_embedding)
+        if src_lang == "zh":
+            src_tokens = jieba.lcut(src_sentence_pp.lower())
+        else:
+            src_tokens = word_tokenize(src_sentence_pp.lower())
+
+        if sim_measure == "BERT":  # keep this for efficiency
+            src_embedding = src_embeddings[sent_id]
+        else:
+            src_embedding = None
+
+        inst = Instance(sent_id, src_sentence, src_sentence_pp, src_tokens, src_embedding)
 
         model_names = list(full_info.system.unique())
 
@@ -175,10 +199,20 @@ def main(argv):
 
             mt_sentence = str(system_info['mt'].iloc[0])
             mt_sentence_pp = remove_punctuation(mt_sentence)
-            mt_embedding = mt_embeddings[model_name][sent_id]
-            mt_prism_score = float(system_info['prism_score'].iloc[0])
 
-            inst.add_mt(model_name, mt_sentence, mt_sentence_pp, mt_embedding, mt_prism_score)
+            if mt_lang == "zh":  # not gonna happen for now
+                mt_tokens = jieba.lcut(mt_sentence_pp.lower())
+            else:
+                mt_tokens = word_tokenize(mt_sentence_pp.lower())
+
+            if sim_measure == "BERT":  # keep this for efficiency
+                mt_embedding = mt_embeddings[model_name][sent_id]
+            else:
+                mt_embedding = None
+
+            mt_prism_score = system_info['prism_score'].iloc[0]
+
+            inst.add_mt(model_name, mt_sentence, mt_sentence_pp, mt_tokens, mt_embedding, mt_prism_score)
 
         U.append(inst)
 
@@ -192,7 +226,7 @@ def main(argv):
 
     oa = init_online_algorithm(algorithm, num_of_models, decimal_places=dp,
                                eta_value=eta_param,
-                               reward_function=reward_function)
+                               reward_function=reward_function, seed=seed)
     print(oa)
 
     ###
@@ -208,14 +242,6 @@ def main(argv):
     with weights_filepath.open("w", encoding="utf8") as f:
         print(','.join(models_str), file=f)
         print(','.join(weights_str), file=f)
-
-    # regret
-    regret_filepath = results_folder / "regret_{}_{}_{}_{}_{}_{}_{}_{}.csv".format(
-        AL_strategy, sim_measure, threshold, algorithm, reward_function, dp, eta_param, run)
-
-    with regret_filepath.open("w", encoding="utf8") as f:
-        print("{}_{}_{}_{}".format(algorithm, reward_function, dp, eta_param),
-              file=f)
 
 
     ################
@@ -246,9 +272,6 @@ def main(argv):
             with weights_filepath.open("a", encoding="utf8") as f:
                 print(','.join(weights_str), file=f)
 
-            ### print regret
-            with regret_filepath.open("a", encoding="utf8") as f:
-                print(oa.regret, file=f)
 
         t = t + 1
 
