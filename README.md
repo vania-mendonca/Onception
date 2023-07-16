@@ -40,6 +40,6 @@ Experiments:
 
 If you use this code, please cite the following articles:
 
-- **Onception/Active Learning:** Mendonça, V., Rei, R., Coheur, L. Sardinha, A. (2021), **Onception: Active Learning with Expert Advice for Real World Machine Translation**, [arXiv:2203.04507](https://arxiv.org/abs/2203.04507)
+- **Onception/Active Learning:** Mendonça, V., Rei, R., Coheur, L. Sardinha, A. (2023), **Onception: Active Learning with Expert Advice for Real World Machine Translation**, Computational Linguistics, 49(2):325–372. [10.1162/coli_a_00473](https://aclanthology.org/2023.cl-2.3/)
 
 - **Baseline:** Mendonça, V., Rei, R., Coheur, L., Sardinha, A., Santos, A. L. (2021). **Online Learning Meets Machine Translation Evaluation: Finding the Best Systems with the Least Human Effort**. *Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)*, 3105–3117. [10.18653/v1/2021.acl-long.242](https://doi.org/10.18653/v1/2021.acl-long.242)
